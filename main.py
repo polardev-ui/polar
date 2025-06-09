@@ -15,8 +15,6 @@ import wikipedia
 from discord.ui import View, Button
 import logging
 
-TOKEN = 'MTM1MDI3MDAzNTczNzcwNjUwOA.GHyMD-.6dzFjLXH9oM7g8JYJc_PC_PJFybzkyXNm1Sbkk'
-
 start_time = datetime.utcnow()
 
 logging.basicConfig(level=logging.INFO)
@@ -2034,4 +2032,4 @@ async def missing_permissions_error(interaction: discord.Interaction, error: app
 
 bot.tree.error(missing_permissions_error)
 
-bot.run(TOKEN)
+bot.run(os.environ["DISCORD_BOT_TOKEN"])
