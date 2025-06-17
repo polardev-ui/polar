@@ -4,3 +4,4 @@ Pillow
 wikipedia
 imageio
 PyNaCl
+flask
