@@ -15,6 +15,7 @@ import wikipedia
 from discord.ui import View, Button
 import logging
 import os
+from keep_alive import keep_alive
 
 start_time = datetime.utcnow()
 
@@ -2033,4 +2034,5 @@ async def missing_permissions_error(interaction: discord.Interaction, error: app
 
 bot.tree.error(missing_permissions_error)
 
+keep_alive()
 bot.run(os.environ["DISCORD_BOT_TOKEN"])
