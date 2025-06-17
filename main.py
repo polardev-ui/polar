@@ -14,6 +14,7 @@ import io
 import wikipedia
 from discord.ui import View, Button
 import logging
+import os
 
 start_time = datetime.utcnow()
 
