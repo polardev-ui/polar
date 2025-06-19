@@ -16,6 +16,10 @@ from discord.ui import View, Button
 import logging
 import os
 from keep_alive import keep_alive
+from playfab import PlayFabClientAPI, PlayFabSettings
+from discord import ui
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 start_time = datetime.utcnow()
 
@@ -32,13 +36,44 @@ intents.message_content = True
 intents.dm_messages = True
 intents.voice_states = True
 
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate({
+    "type": os.getenv('FIREBASE_TYPE'),
+    "project_id": os.getenv('FIREBASE_PROJECT_ID'),
+    "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
+    "private_key": os.getenv('FIREBASE_PRIVATE_KEY').replace('\\n', '\n'),
+    "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
+    "client_id": os.getenv('FIREBASE_CLIENT_ID'),
+    "auth_uri": os.getenv('FIREBASE_AUTH_URI'),
+    "token_uri": os.getenv('FIREBASE_TOKEN_URI'),
+    "auth_provider_x509_cert_url": os.getenv('FIREBASE_AUTH_PROVIDER_X509_CERT_URL'),
+    "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_X509_CERT_URL')
+})
+
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
 bot = commands.Bot(command_prefix=',', intents=intents)
+
+class PlayerCountModal(ui.Modal, title='Player Count Configuration'):
+    playfab_id = ui.TextInput(label='PlayFab ID', placeholder='Enter your PlayFab ID')
+    dev_key = ui.TextInput(label='Developer Key', placeholder='Enter your Developer Key')
+    channel_id = ui.TextInput(label='Channel ID', placeholder='Enter the Channel ID')
+
+    async def on_submit(self, interaction: discord.Interaction):
+        store_config(self.playfab_id.value, self.dev_key.value, self.channel_id.value)
+        await interaction.response.send_message('Configuration saved!')
+
+@bot.command(name='players')
+async def players(ctx):
+    await ctx.send_modal(PlayerCountModal())
 
 SUSPICIOUS_ACCOUNT_AGE_DAYS = 7
 
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
+    bot.loop.create_task(send_player_count_hourly())
     try:
         synced = await bot.tree.sync()
         print(f'Successfully synced {len(synced)} slash command(s).')
@@ -50,7 +85,27 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
     print(f"Error in {interaction.command.name}: {str(error)}")
 
+async def send_player_count_hourly():
+    while True:
+        await bot.wait_until_ready()
+        config = get_config()
+        if config and 'channel_id' in config:
+            channel = bot.get_channel(int(config['channel_id']))
+            if channel:
+                PlayFabSettings.TitleId = config['playfab_id']
+                PlayFabSettings.DeveloperSecretKey = config['dev_key']
+                request = {
+                    "FunctionName": "GetPlayerCount",
+                    "FunctionParameter": {}
+                }
+                result = PlayFabClientAPI.ExecuteCloudScript(request)
 
+                if result and 'FunctionResult' in result['result']:
+                    player_count = result['result']['FunctionResult']['PlayerCount']
+                    await channel.send(f"The current number of players is: {player_count}")
+                else:
+                    await channel.send("Failed to retrieve player count.")
+        await asyncio.sleep(3600)  # Wait for an hour
 
 @bot.tree.command(name='gif', description='Converts an uploaded image to a GIF and sends it')
 async def gif_slash(interaction: discord.Interaction, image: discord.Attachment):
