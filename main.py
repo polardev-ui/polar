@@ -55,6 +55,14 @@ db = firestore.client()
 
 bot = commands.Bot(command_prefix=',', intents=intents)
 
+def store_config(playfab_id, dev_key, channel_id):
+    doc_ref = db.collection('bot_config').document('player_count')
+    doc_ref.set({
+        'playfab_id': playfab_id,
+        'dev_key': dev_key,
+        'channel_id': channel_id
+    })
+
 class PlayerCountModal(ui.Modal, title='Player Count Configuration'):
     playfab_id = ui.TextInput(label='PlayFab ID', placeholder='Enter your PlayFab ID')
     dev_key = ui.TextInput(label='Developer Key', placeholder='Enter your Developer Key')
