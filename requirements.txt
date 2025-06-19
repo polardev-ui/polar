@@ -6,4 +6,4 @@ imageio
 PyNaCl
 flask
 firebase-admin
-playfab-sdk
+playfab
