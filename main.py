@@ -99,7 +99,7 @@ async def on_ready():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
     print(f"Error in {interaction.command.name}: {str(error)}")
-
+    
 async def send_player_count_hourly():
     while True:
         await bot.wait_until_ready()
@@ -113,14 +113,25 @@ async def send_player_count_hourly():
                     "FunctionName": "GetPlayerCount",
                     "FunctionParameter": {}
                 }
-                result = PlayFabClientAPI.ExecuteCloudScript(request)
 
-                if result and 'FunctionResult' in result['result']:
-                    player_count = result['result']['FunctionResult']['PlayerCount']
-                    await channel.send(f"The current number of players is: {player_count}")
-                else:
-                    await channel.send("Failed to retrieve player count.")
+                # Define the callback *inside* so it can access 'channel'
+                def cloud_script_callback(success, failure):
+                    if success:
+                        player_count = success.get('FunctionResult', {}).get('PlayerCount')
+                        if player_count is not None:
+                            coro = channel.send(f"The current number of players is: {player_count}")
+                        else:
+                            coro = channel.send("❌ Failed to parse player count.")
+                    else:
+                        coro = channel.send("❌ Failed to retrieve player count from PlayFab.")
+
+                    asyncio.run_coroutine_threadsafe(coro, bot.loop)
+
+                # Call PlayFab API with callback
+                PlayFabClientAPI.ExecuteCloudScript(request, cloud_script_callback)
+
         await asyncio.sleep(3600)  # Wait for an hour
+
 @bot.tree.command(name="checkplayers", description="Manually check current player count")
 async def checkplayers(interaction: discord.Interaction):
     await interaction.response.defer()  # Tells Discord: I'm working on it!
