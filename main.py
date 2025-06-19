@@ -55,6 +55,13 @@ db = firestore.client()
 
 bot = commands.Bot(command_prefix=',', intents=intents)
 
+def get_config():
+    doc = db.collection('bot_config').document('player_count').get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return None
+
 def store_config(playfab_id, dev_key, channel_id):
     doc_ref = db.collection('bot_config').document('player_count')
     doc_ref.set({
@@ -114,6 +121,27 @@ async def send_player_count_hourly():
                 else:
                     await channel.send("Failed to retrieve player count.")
         await asyncio.sleep(3600)  # Wait for an hour
+
+@bot.tree.command(name="checkplayers", description="Manually check current player count")
+async def checkplayers(interaction: discord.Interaction):
+    config = get_config()
+    if not config or 'channel_id' not in config:
+        await interaction.response.send_message("⚠️ Config not found. Please set it up first using /players.", ephemeral=True)
+        return
+
+    PlayFabSettings.TitleId = config['playfab_id']
+    PlayFabSettings.DeveloperSecretKey = config['dev_key']
+    request = {
+        "FunctionName": "GetPlayerCount",
+        "FunctionParameter": {}
+    }
+    result = PlayFabClientAPI.ExecuteCloudScript(request)
+
+    if result and 'FunctionResult' in result['result']:
+        player_count = result['result']['FunctionResult']['PlayerCount']
+        await interaction.response.send_message(f"✅ The current number of players is: {player_count}")
+    else:
+        await interaction.response.send_message("❌ Failed to retrieve player count.")
 
 @bot.tree.command(name='gif', description='Converts an uploaded image to a GIF and sends it')
 async def gif_slash(interaction: discord.Interaction, image: discord.Attachment):
