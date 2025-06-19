@@ -64,9 +64,9 @@ class PlayerCountModal(ui.Modal, title='Player Count Configuration'):
         store_config(self.playfab_id.value, self.dev_key.value, self.channel_id.value)
         await interaction.response.send_message('Configuration saved!')
 
-@bot.command(name='players')
-async def players(ctx):
-    await ctx.send_modal(PlayerCountModal())
+@bot.tree.command(name="players", description="Configure PlayFab settings")
+async def players(interaction: discord.Interaction):
+    await interaction.response.send_modal(PlayerCountModal())
 
 SUSPICIOUS_ACCOUNT_AGE_DAYS = 7
 
