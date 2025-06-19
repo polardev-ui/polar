@@ -121,12 +121,13 @@ async def send_player_count_hourly():
                 else:
                     await channel.send("Failed to retrieve player count.")
         await asyncio.sleep(3600)  # Wait for an hour
-
 @bot.tree.command(name="checkplayers", description="Manually check current player count")
 async def checkplayers(interaction: discord.Interaction):
+    await interaction.response.defer()  # Tells Discord: I'm working on it!
+
     config = get_config()
     if not config or 'channel_id' not in config:
-        await interaction.response.send_message("⚠️ Config not found. Please set it up first using /players.", ephemeral=True)
+        await interaction.followup.send("⚠️ Config not found. Please set it up first using /players.")
         return
 
     PlayFabSettings.TitleId = config['playfab_id']
@@ -135,13 +136,17 @@ async def checkplayers(interaction: discord.Interaction):
         "FunctionName": "GetPlayerCount",
         "FunctionParameter": {}
     }
-    result = PlayFabClientAPI.ExecuteCloudScript(request)
+
+    # Note: PlayFabClientAPI.ExecuteCloudScript is sync — you should ideally run it in a thread executor
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: PlayFabClientAPI.ExecuteCloudScript(request))
 
     if result and 'FunctionResult' in result['result']:
         player_count = result['result']['FunctionResult']['PlayerCount']
-        await interaction.response.send_message(f"✅ The current number of players is: {player_count}")
+        await interaction.followup.send(f"✅ The current number of players is: {player_count}")
     else:
-        await interaction.response.send_message("❌ Failed to retrieve player count.")
+        await interaction.followup.send("❌ Failed to retrieve player count.")
 
 @bot.tree.command(name='gif', description='Converts an uploaded image to a GIF and sends it')
 async def gif_slash(interaction: discord.Interaction, image: discord.Attachment):
