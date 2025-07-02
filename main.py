@@ -14,12 +14,8 @@ import io
 import wikipedia
 from discord.ui import View, Button
 import logging
-import os
-from keep_alive import keep_alive
-from playfab import PlayFabClientAPI, PlayFabSettings
-from discord import ui
-import firebase_admin
-from firebase_admin import credentials, firestore
+
+TOKEN = 'MTM1MDI3MDAzNTczNzcwNjUwOA.GHyMD-.6dzFjLXH9oM7g8JYJc_PC_PJFybzkyXNm1Sbkk'
 
 start_time = datetime.utcnow()
 
@@ -36,59 +32,13 @@ intents.message_content = True
 intents.dm_messages = True
 intents.voice_states = True
 
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate({
-    "type": os.getenv('FIREBASE_TYPE'),
-    "project_id": os.getenv('FIREBASE_PROJECT_ID'),
-    "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
-    "private_key": os.getenv('FIREBASE_PRIVATE_KEY').replace('\\n', '\n'),
-    "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
-    "client_id": os.getenv('FIREBASE_CLIENT_ID'),
-    "auth_uri": os.getenv('FIREBASE_AUTH_URI'),
-    "token_uri": os.getenv('FIREBASE_TOKEN_URI'),
-    "auth_provider_x509_cert_url": os.getenv('FIREBASE_AUTH_PROVIDER_X509_CERT_URL'),
-    "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_X509_CERT_URL')
-})
-
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
 bot = commands.Bot(command_prefix=',', intents=intents)
-
-def get_config():
-    doc = db.collection('bot_config').document('player_count').get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return None
-
-def store_config(playfab_id, dev_key, channel_id):
-    doc_ref = db.collection('bot_config').document('player_count')
-    doc_ref.set({
-        'playfab_id': playfab_id,
-        'dev_key': dev_key,
-        'channel_id': channel_id
-    })
-
-class PlayerCountModal(ui.Modal, title='Player Count Configuration'):
-    playfab_id = ui.TextInput(label='PlayFab ID', placeholder='Enter your PlayFab ID')
-    dev_key = ui.TextInput(label='Developer Key', placeholder='Enter your Developer Key')
-    channel_id = ui.TextInput(label='Channel ID', placeholder='Enter the Channel ID')
-
-    async def on_submit(self, interaction: discord.Interaction):
-        store_config(self.playfab_id.value, self.dev_key.value, self.channel_id.value)
-        await interaction.response.send_message('Configuration saved!')
-
-@bot.tree.command(name="players", description="Configure PlayFab settings")
-async def players(interaction: discord.Interaction):
-    await interaction.response.send_modal(PlayerCountModal())
 
 SUSPICIOUS_ACCOUNT_AGE_DAYS = 7
 
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
-    bot.loop.create_task(send_player_count_hourly())
     try:
         synced = await bot.tree.sync()
         print(f'Successfully synced {len(synced)} slash command(s).')
@@ -99,65 +49,8 @@ async def on_ready():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
     print(f"Error in {interaction.command.name}: {str(error)}")
-    
-async def send_player_count_hourly():
-    while True:
-        await bot.wait_until_ready()
-        config = get_config()
-        if config and 'channel_id' in config:
-            channel = bot.get_channel(int(config['channel_id']))
-            if channel:
-                PlayFabSettings.TitleId = config['playfab_id']
-                PlayFabSettings.DeveloperSecretKey = config['dev_key']
-                request = {
-                    "FunctionName": "GetPlayerCount",
-                    "FunctionParameter": {}
-                }
 
-                # Define the callback *inside* so it can access 'channel'
-                def cloud_script_callback(success, failure):
-                    if success:
-                        player_count = success.get('FunctionResult', {}).get('PlayerCount')
-                        if player_count is not None:
-                            coro = channel.send(f"The current number of players is: {player_count}")
-                        else:
-                            coro = channel.send("❌ Failed to parse player count.")
-                    else:
-                        coro = channel.send("❌ Failed to retrieve player count from PlayFab.")
 
-                    asyncio.run_coroutine_threadsafe(coro, bot.loop)
-
-                # Call PlayFab API with callback
-                PlayFabClientAPI.ExecuteCloudScript(request, cloud_script_callback)
-
-        await asyncio.sleep(3600)  # Wait for an hour
-
-@bot.tree.command(name="checkplayers", description="Manually check current player count")
-async def checkplayers(interaction: discord.Interaction):
-    await interaction.response.defer()  # Tells Discord: I'm working on it!
-
-    config = get_config()
-    if not config or 'channel_id' not in config:
-        await interaction.followup.send("⚠️ Config not found. Please set it up first using /players.")
-        return
-
-    PlayFabSettings.TitleId = config['playfab_id']
-    PlayFabSettings.DeveloperSecretKey = config['dev_key']
-    request = {
-        "FunctionName": "GetPlayerCount",
-        "FunctionParameter": {}
-    }
-
-    # Note: PlayFabClientAPI.ExecuteCloudScript is sync — you should ideally run it in a thread executor
-    import asyncio
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, lambda: PlayFabClientAPI.ExecuteCloudScript(request))
-
-    if result and 'FunctionResult' in result['result']:
-        player_count = result['result']['FunctionResult']['PlayerCount']
-        await interaction.followup.send(f"✅ The current number of players is: {player_count}")
-    else:
-        await interaction.followup.send("❌ Failed to retrieve player count.")
 
 @bot.tree.command(name='gif', description='Converts an uploaded image to a GIF and sends it')
 async def gif_slash(interaction: discord.Interaction, image: discord.Attachment):
@@ -964,7 +857,42 @@ async def help_command(ctx):
         "- `,dadjoke` - Sends a dad joke.\n"
         "- `,fact` - Sends a random fact.\n",
             color=discord.Color.blurple()
-        )
+        ),
+        discord.Embed(
+            title="Help - Page 4",
+            description="**🎰 Gambling & Casino Commands**\n"
+        "- `,slots` - Spin the slot machine.\n"
+        "- `,coinbet <amount>` - Bet on heads or tails.\n"
+        "- `,dicebet <amount>` - Roll the dice to win big.\n"
+        "- `,highlow` - Guess if the next number is higher or lower.\n"
+        "- `,jackpot` - Try your luck at the jackpot.\n"
+        "- `,doubleornothing` - Risk everything for double.\n"
+        "- `,flipfight <user>` - Coinflip duel against another user.\n"
+        "- `,blackjack` - Play a round of blackjack.\n"
+        "- `,roulette` - Bet on red, black, or numbers.\n"
+        "- `,scratchcard` - Scratch to win.\n"
+        "- `,lotto` - Pick numbers, win millions (or not).\n"
+        "- `,luckyspin` - Spin the wheel of luck.\n"
+        "- `,pickanumber` - Choose a number and bet.\n"
+        "- `,colorbet <color>` - Bet on red, green, or blue.\n"
+        "- `,poker` - Try your hand at simple poker.\n"
+        "- `,race` - Bet on a virtual race.\n"
+        "- `,craps` - Play the dice game.\n"
+        "- `,keno` - Bet on Keno numbers.\n"
+        "- `,fortune` - Fortune favors the bold.\n"
+        "- `,hotdice` - Higher dice roll wins.\n"
+        "- `,rollbattle` - Battle an opponent with dice.\n"
+        "- `,fastmoney` - Quick money... or quick loss.\n"
+        "- `,betall` - Go all in (not for the faint-hearted).\n"
+        "- `,luckyflip` - Extreme coinflip.\n"
+        "- `,quickbet` - Rapid-fire betting.\n"
+        "- `,evenodd` - Bet on even or odd.\n"
+        "- `,wheeloffortune` - Spin and pray.\n"
+        "- `,multiplier` - Guess your multiplier.\n"
+        "- `,riskit` - Max risk, max reward.\n"
+        "- `,mysterybox` - You win... something.",
+            color=discord.Color.dark_gold()
+        ),
     ]
 
     class HelpView(View):
@@ -2083,7 +2011,6 @@ async def modlog_command(ctx):
         entries.append(f"{entry.action} - {entry.user} -> {entry.target}")
     await ctx.send("\n".join(entries) or "No moderation actions found.")
 
-# --- MODPING (Ping all moderators) ---
 @bot.tree.command(name="modping", description="Ping all moderators (role with ban_members).")
 @app_commands.checks.has_permissions(mention_everyone=True)
 async def modping_slash(interaction: discord.Interaction):
@@ -2102,7 +2029,6 @@ async def modping_command(ctx):
     else:
         await ctx.send("No moderator role found.")
 
-# --- APPEAL (Send appeal to mods) ---
 @bot.tree.command(name="appeal", description="Submit an appeal for a moderation action (sends to admins).")
 async def appeal_slash(interaction: discord.Interaction, case_id: int, message: str):
     mod_role = discord.utils.get(interaction.guild.roles, permissions=discord.Permissions(administrator=True))
@@ -2129,11 +2055,116 @@ async def appeal_command(ctx, case_id: int, *, message: str):
     else:
         await ctx.send("No admin/mod role found.")
 
-# --- Add more commands as needed using this structure ---
+@bot.command(name='slots')
+async def slots_command(ctx, bet: int):
+    emojis = ["🍒", "🍋", "🔔", "💎", "7️⃣"]
+    result = [random.choice(emojis) for _ in range(3)]
+    payout_multiplier = 0
+    if len(set(result)) == 1:
+        payout_multiplier = 5
+    elif result[0] == result[1] or result[1] == result[2]:
+        payout_multiplier = 2
+    winnings = bet * payout_multiplier
+    await ctx.send(f"{' '.join(result)}\n{'You win!' if winnings > 0 else 'You lose!'} Winnings: ${winnings}")
 
+@bot.command(name='coinbet')
+async def coinbet_command(ctx, choice: str, bet: int):
+    outcome = random.choice(['heads', 'tails'])
+    win = choice.lower() == outcome
+    winnings = bet * 2 if win else 0
+    await ctx.send(f"🪙 The coin landed on **{outcome}**. {'You win!' if win else 'You lose!'} Winnings: ${winnings}")
 
+@bot.command(name='dicebet')
+async def dicebet_command(ctx, bet: int):
+    roll = random.randint(1, 6)
+    winnings = bet * roll
+    await ctx.send(f"🎲 You rolled a {roll}! Winnings: ${winnings}")
 
+@bot.command(name='highlow')
+async def highlow_command(ctx, guess: str, bet: int):
+    current = random.randint(1, 100)
+    next_number = random.randint(1, 100)
+    correct = (next_number > current and guess == 'higher') or (next_number < current and guess == 'lower')
+    winnings = bet * 2 if correct else 0
+    await ctx.send(f"🔢 Current: {current}, Next: {next_number}. {'Correct!' if correct else 'Wrong!'} Winnings: ${winnings}")
 
+@bot.command(name='jackpot')
+async def jackpot_command(ctx, bet: int):
+    number = random.randint(1, 1000)
+    winnings = bet * 100 if number == 777 else 0
+    await ctx.send(f"🎰 Jackpot number was {number}. {'You hit the jackpot!' if winnings else 'No luck!'} Winnings: ${winnings}")
+
+@bot.command(name='doubleornothing')
+async def double_or_nothing_command(ctx, bet: int):
+    win = random.choice([True, False])
+    winnings = bet * 2 if win else 0
+    await ctx.send(f"🎯 {'Double!' if win else 'Nothing!'} Winnings: ${winnings}")
+
+@bot.command(name='flipfight')
+async def flipfight_command(ctx, opponent: discord.Member):
+    winner = random.choice([ctx.author, opponent])
+    await ctx.send(f"🪙 {ctx.author.mention} vs {opponent.mention}... Winner: **{winner.mention}**!")
+
+@bot.command(name='roulette')
+async def roulette_command(ctx, bet: int, choice: str):
+    number = random.choice(list(map(str, range(0, 37))) + ['00'])
+    win = choice == number
+    winnings = bet * 36 if win else 0
+    await ctx.send(f"🎡 The wheel landed on {number}. {'You win!' if win else 'You lose!'} Winnings: ${winnings}")
+
+@bot.command(name='scratchcard')
+async def scratchcard_command(ctx, bet: int):
+    symbols = ['💵', '🎁', '💎', '🔥', '❌']
+    result = random.choice(symbols)
+    winnings = {
+        '💵': bet,
+        '🎁': bet * 2,
+        '💎': bet * 5,
+        '🔥': bet * 10,
+        '❌': 0
+    }[result]
+    await ctx.send(f"🃏 You scratched: {result}. Winnings: ${winnings}")
+
+@bot.command(name='lotto')
+async def lotto_command(ctx, *picks: int):
+    if len(picks) != 5:
+        await ctx.send("Please choose 5 numbers between 1 and 50.")
+        return
+    winning = random.sample(range(1, 51), 5)
+    matched = len(set(picks) & set(winning))
+    winnings = 100 * matched
+    await ctx.send(f"🎟️ Winning numbers: {winning}\nYou matched {matched}! Winnings: ${winnings}")
+
+@bot.command(name='luckyspin')
+async def luckyspin_command(ctx, bet: int):
+    wheel = ['lose', 'double', 'triple', 'nothing', 'jackpot']
+    result = random.choice(wheel)
+    multipliers = {'lose': 0, 'double': 2, 'triple': 3, 'nothing': 1, 'jackpot': 10}
+    winnings = bet * multipliers[result]
+    await ctx.send(f"🎡 Spin landed on **{result}**. Winnings: ${winnings}")
+
+@bot.command(name='pickanumber')
+async def pickanumber_command(ctx, number: int, bet: int):
+    chosen = random.randint(1, 10)
+    win = number == chosen
+    winnings = bet * 10 if win else 0
+    await ctx.send(f"🎯 You picked {number}. Number was {chosen}. {'You win!' if win else 'You lose!'} Winnings: ${winnings}")
+
+@bot.command(name='colorbet')
+async def colorbet_command(ctx, color: str, bet: int):
+    colors = ['red', 'green', 'blue']
+    drawn = random.choice(colors)
+    win = color.lower() == drawn
+    winnings = bet * (3 if drawn == 'green' else 2) if win else 0
+    await ctx.send(f"🎨 Color drawn: {drawn}. {'You win!' if win else 'You lose!'} Winnings: ${winnings}")
+
+@bot.command(name='riskit')
+async def riskit_command(ctx, bet: int):
+    outcomes = ['Big Win', 'Small Win', 'Lose Everything', 'Break Even']
+    result = random.choice(outcomes)
+    multiplier = {'Big Win': 5, 'Small Win': 2, 'Lose Everything': 0, 'Break Even': 1}[result]
+    winnings = bet * multiplier
+    await ctx.send(f"🔥 Risk Result: {result}. Winnings: ${winnings}")
 
 async def missing_permissions_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
@@ -2141,5 +2172,4 @@ async def missing_permissions_error(interaction: discord.Interaction, error: app
 
 bot.tree.error(missing_permissions_error)
 
-keep_alive()
-bot.run(os.environ["DISCORD_BOT_TOKEN"])
+bot.run(TOKEN)
