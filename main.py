@@ -15,7 +15,7 @@ import wikipedia
 from discord.ui import View, Button
 import logging
 
-TOKEN = 'MTM4MTY1MTkyMDY0ODkyOTM4Mg.GuZmQK.8tO88OSp2xHI_eZwKzOuTnr48n0Q1ocvIF3pzc'
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 start_time = datetime.utcnow()
 
