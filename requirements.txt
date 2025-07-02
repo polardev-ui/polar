@@ -7,4 +7,3 @@ PyNaCl
 flask
 firebase-admin
 playfab
-os
