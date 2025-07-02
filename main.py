@@ -2173,4 +2173,5 @@ async def missing_permissions_error(interaction: discord.Interaction, error: app
 
 bot.tree.error(missing_permissions_error)
 
+print(f"TOKEN: {TOKEN}")
 bot.run(TOKEN)
